@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/helpers.php';
 
 header('Content-Type: application/json');
 // CORS (kept as a safety net in case frontend is ever served from a different origin)
@@ -98,8 +99,8 @@ try {
     // ---------------------------------------------------------------
     if ($method === 'GET' && $action === 'day') {
         $date = $_GET['date'] ?? '';
-        if (!$date) {
-            respond(['error' => 'date is required'], 400);
+        if (!$date || !is_valid_reminder_date($date)) {
+            respond(['error' => 'a valid date (YYYY-MM-DD) is required'], 400);
         }
 
         $stmt = $pdo->prepare(
@@ -124,11 +125,16 @@ try {
         $date = $body['date'] ?? '';
         $items = $body['items'] ?? [];
 
-        if (!$date) {
-            respond(['error' => 'date is required'], 400);
+        if (!$date || !is_valid_reminder_date($date)) {
+            respond(['error' => 'a valid date (YYYY-MM-DD) is required'], 400);
         }
         if (!is_array($items) || count($items) === 0) {
             respond(['error' => 'at least one item is required'], 400);
+        }
+
+        $items = filter_valid_reminder_items($items);
+        if (count($items) === 0) {
+            respond(['error' => 'at least one item with a non-empty title is required'], 400);
         }
 
         $pdo->beginTransaction();
@@ -142,10 +148,7 @@ try {
         );
 
         foreach ($items as $item) {
-            $title = trim($item['title'] ?? '');
-            if ($title === '') {
-                continue;
-            }
+            $title = $item['title']; // already normalized by filter_valid_reminder_items()
             $notes = $item['notes'] ?? null;
             $id = $item['id'] ?? null;
 
@@ -184,7 +187,7 @@ try {
     if ($method === 'PUT' && $action === 'update') {
         $body = readJsonBody();
         $id = $body['id'] ?? null;
-        $title = trim($body['title'] ?? '');
+        $title = normalize_title((string) ($body['title'] ?? ''));
         $notes = $body['notes'] ?? null;
 
         if (!$id || $title === '') {

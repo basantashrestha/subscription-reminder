@@ -8,7 +8,31 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  backend-unit-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Install Composer dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run PHPUnit
+        working-directory: backend
+        run: vendor/bin/phpunit --colors=always
+
   build-and-scan:
+    needs: backend-unit-tests
     runs-on: ubuntu-latest
     permissions:
       contents: read

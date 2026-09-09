@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Subscription Reminder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="ledger-header">
+    <div class="ledger-header__title">
+      <h1>Subscription Reminder</h1>
+      <p>Keep every bill, tax and renewal on one page.</p>
+    </div>
+    <div class="year-nav">
+      <button id="prevYear" class="year-nav__btn" aria-label="Previous year">&#8249;</button>
+      <span id="yearLabel" class="year-nav__label">2026</span>
+      <button id="nextYear" class="year-nav__btn" aria-label="Next year">&#8250;</button>
+    </div>
+  </header>
+
+  <main id="calendarGrid" class="calendar-grid"></main>
+
+  <!-- overlay for closing the panel by clicking outside -->
+  <div id="panelOverlay" class="panel-overlay"></div>
+
+  <aside id="sidePanel" class="side-panel">
+    <div class="side-panel__inner">
+      <div class="side-panel__head">
+        <div>
+          <p class="side-panel__eyebrow" id="panelDateLong">Select a date</p>
+          <h2 id="panelDate">&mdash;</h2>
+        </div>
+        <button id="closePanel" class="icon-btn" aria-label="Close panel">&times;</button>
+      </div>
+
+      <section class="side-panel__section">
+        <h3>Saved reminders</h3>
+        <ul id="existingList" class="reminder-list">
+          <li class="reminder-list__empty" id="emptyState">Nothing saved for this date yet.</li>
+        </ul>
+      </section>
+
+      <section class="side-panel__section">
+        <h3>Add reminders</h3>
+        <p class="side-panel__hint">Add as many items as you like, then save them together.</p>
+        <div id="newItemsList" class="new-items-list"></div>
+        <button id="addRowBtn" class="text-btn" type="button">+ Add another title</button>
+      </section>
+
+      <div class="side-panel__actions">
+        <button id="saveAllBtn" class="btn btn--primary" type="button">Save all</button>
+      </div>
+      <p id="panelStatus" class="side-panel__status" role="status"></p>
+    </div>
+  </aside>
+
+  <script src="app.js"></script>
+</body>
+</html>

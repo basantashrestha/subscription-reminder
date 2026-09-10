@@ -23,13 +23,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ubuntu-latest ships several PHP versions already installed.
-      # This just tells the runner which one to use as `php` -
-      # no download, no extra action.
-      - name: Select PHP 8.2
+      # ubuntu-latest ships one PHP version by default (no guarantee
+      # which specific minor version, and it changes over time).
+      # composer.json only requires php >= 8.2, so we just check that
+      # constraint is met rather than forcing a specific minor version.
+      - name: Check PHP version
         run: |
-          sudo update-alternatives --set php /usr/bin/php8.2
           php -v
+          php -r 'if (version_compare(PHP_VERSION, "8.2.0", "<")) { fwrite(STDERR, "PHP 8.2+ required, got " . PHP_VERSION . "\n"); exit(1); }'
           composer --version
 
       - name: Install Composer dependencies

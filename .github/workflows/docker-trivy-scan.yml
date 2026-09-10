@@ -7,21 +7,30 @@ on:
     branches: [ "main" ]
   workflow_dispatch: {}
 
+env:
+  # Bump this when you want a newer Trivy. Pinning it means every run
+  # scans with the exact same tool version until you deliberately change it.
+  TRIVY_VERSION: "0.74.0"
+
 jobs:
   backend-unit-tests:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
+      # The one action we keep here: it just fetches your repo's code
+      # onto the runner. There's no plain-shell equivalent that handles
+      # auth/refs as safely, so this one stays.
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          coverage: none
+      # ubuntu-latest ships several PHP versions already installed.
+      # This just tells the runner which one to use as `php` -
+      # no download, no extra action.
+      - name: Select PHP 8.2
+        run: |
+          sudo update-alternatives --set php /usr/bin/php8.2
+          php -v
+          composer --version
 
       - name: Install Composer dependencies
         working-directory: backend
@@ -34,8 +43,6 @@ jobs:
   build-and-scan:
     needs: backend-unit-tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     strategy:
       fail-fast: false
@@ -50,22 +57,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Build the image and load it into the local docker daemon
-      # (needed so Trivy and `docker save` can see it below).
+      # Docker is already installed on the runner - plain `docker build`,
+      # no buildx setup action needed.
       - name: Build ${{ matrix.service }} image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          tags: subscription-reminder-${{ matrix.service }}:${{ github.sha }}
-          push: false
-          load: true
+        run: |
+          docker build -t subscription-reminder-${{ matrix.service }}:${{ github.sha }} ${{ matrix.context }}
 
-      # "Docker image artifact": export the built image as a .tar file
-      # and upload it so it can be downloaded from the workflow run.
-      - name: Save image as tar artifact
+      # "Docker image artifact": export the built image to a .tar file.
+      - name: Save image as tar
         run: |
           mkdir -p artifacts
           docker save subscription-reminder-${{ matrix.service }}:${{ github.sha }} \
@@ -77,27 +76,28 @@ jobs:
           name: ${{ matrix.service }}-docker-image
           path: artifacts/${{ matrix.service }}-image.tar
 
-      # Scan the image with Trivy. This step also prints a human-readable
-      # table straight to the job log (visible under Actions -> this run).
-      - name: Scan ${{ matrix.service }} image with Trivy
-        # Pinned to v0.35.0 by full commit SHA (not a mutable tag) — this
-        # release is the confirmed-safe one after the March 2026 trivy-action
-        # supply-chain compromise. Don't switch back to a bare version tag.
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
-        with:
-          image-ref: subscription-reminder-${{ matrix.service }}:${{ github.sha }}
-          format: table
-          output: trivy-${{ matrix.service }}-report.txt
-          severity: CRITICAL,HIGH,MEDIUM
-          ignore-unfixed: true
-          # Set to '1' instead if you want the workflow to fail when
-          # CRITICAL/HIGH vulnerabilities are found.
-          exit-code: '0'
+      # Download the official Trivy binary directly and verify its
+      # checksum before running it - no third-party Action involved.
+      - name: Install Trivy ${{ env.TRIVY_VERSION }}
+        run: |
+          set -euo pipefail
+          cd /tmp
+          curl -sSLO "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -sSLO "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" trivy_${TRIVY_VERSION}_checksums.txt | sha256sum -c -
+          tar -xzf trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy
+          sudo mv trivy /usr/local/bin/trivy
+          trivy --version
 
-      # Print the report to the console explicitly, and also add it to the
-      # run's Summary tab so it's easy to read without opening raw logs.
-      - name: Print Trivy report to console
-        run: cat trivy-${{ matrix.service }}-report.txt
+      - name: Scan ${{ matrix.service }} image with Trivy
+        run: |
+          trivy image \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --ignore-unfixed \
+            --format table \
+            --exit-code 0 \
+            subscription-reminder-${{ matrix.service }}:${{ github.sha }} \
+            | tee trivy-${{ matrix.service }}-report.txt
 
       - name: Add Trivy report to job summary
         if: always()
